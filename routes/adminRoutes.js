@@ -5,11 +5,6 @@ import { login, verifyToken, getAdviserApplications, getApplicationById, updateA
 import { adminProtect } from '../middleware/auth.js';
 
 
-// In your login route handlers in api_devguidance/routes/
-// Add these headers for login responses:
-res.header('Access-Control-Allow-Credentials', 'true');
-res.header('Access-Control-Allow-Origin', req.headers.origin); // Dynamically set to the requesting origin
-
 const router = Router();
 
 // Admin registration route
