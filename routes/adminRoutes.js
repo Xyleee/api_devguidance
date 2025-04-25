@@ -1,8 +1,14 @@
 import express from 'express';
 import { Router } from 'express';
 import Admin from '../model/admin.js';
-import { login, verifyToken } from '../controller/adminController.js';
+import { login, verifyToken, getAdviserApplications, getApplicationById, updateApplicationStatus } from '../controller/adminController.js';
 import { adminProtect } from '../middleware/auth.js';
+
+
+// In your login route handlers in api_devguidance/routes/
+// Add these headers for login responses:
+res.header('Access-Control-Allow-Credentials', 'true');
+res.header('Access-Control-Allow-Origin', req.headers.origin); // Dynamically set to the requesting origin
 
 const router = Router();
 
@@ -69,5 +75,10 @@ router.post('/register', async (req, res) => {
 router.post('/login', login);
 
 router.get('/verify', adminProtect, verifyToken);
+
+// Adviser application routes - all protected with admin middleware
+router.get('/adviser-applications', adminProtect, getAdviserApplications);
+router.get('/adviser-applications/:id', adminProtect, getApplicationById);
+router.put('/adviser-applications/:id/decision', adminProtect, updateApplicationStatus);
 
 export default router;

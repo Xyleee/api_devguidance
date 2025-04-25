@@ -12,6 +12,9 @@ import { fileURLToPath } from 'url'
 import { dirname } from 'path'
 import projectRoutes from "./routes/projectRoutes.js"
 import path from 'path'
+import testRoutes from './routes/testRoutes.js'
+import mentorRoutes from './routes/mentorRoutes.js'
+import messagingRoutes from './routes/messagingRoutes.js'
 
 // ES Module fix for __dirname
 const __filename = fileURLToPath(import.meta.url)
@@ -25,11 +28,15 @@ app.use(express.urlencoded({ extended: true }));
 
 // Configure CORS
 const allowedOrigins = [
-  'http://localhost:5000',      // Local development
-  'http://localhost:5173',      // Vite default port
-  'http://127.0.0.1:5000',     // Local development alternative
-  'https://devguidance.site',   // Production frontend
-  'https://www.devguidance.site' // Production frontend with www
+  'http://localhost:5000',      
+  'http://localhost:5173',      
+  'http://127.0.0.1:5000',     
+  'https://devguidance.site',   
+  'https://www.devguidance.site',
+  'http://localhost:5002',
+  // Add your actual Cloudflare Pages URLs:
+  'https://devguidance.pages.dev',     // Replace with your actual Cloudflare Pages domain
+  'https://*.pages.dev'                // Optionally allow all Cloudflare Pages subdomains for testing
 ];
 
 // CORS configuration - MUST be before any route handlers
@@ -38,15 +45,17 @@ app.use(cors({
         // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
         
-        if (allowedOrigins.indexOf(origin) !== -1) {
+        if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith('.pages.dev')) {
             callback(null, true);
         } else {
+            console.log('CORS blocked origin:', origin); // Add this for debugging
             callback(new Error('Not allowed by CORS'));
         }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    exposedHeaders: ['Set-Cookie', 'Date', 'ETag']
 }));
 // Handle OPTIONS requests explicitly
 app.options('*', cors());
@@ -78,6 +87,9 @@ app.use('/api/students', studentRoutes);
 app.use('/api/advisers', adviserRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/test', testRoutes);
+app.use('/api/mentors', mentorRoutes);
+app.use('/api/messages', messagingRoutes);
 
 // Serve static files
 app.use('/api/uploads', express.static(path.join(__dirname, 'uploads'), {
@@ -88,6 +100,14 @@ app.use('/api/uploads', express.static(path.join(__dirname, 'uploads'), {
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Debug middleware in api_devguidance/index.js
+app.use((req, res, next) => {
+  console.log(`Request from origin: ${req.headers.origin}`);
+  console.log(`Request path: ${req.path}`);
+  console.log(`Auth header: ${req.headers.authorization ? 'Present' : 'Missing'}`);
+  next();
 });
 
 // Error handling middleware
@@ -119,6 +139,12 @@ app.use((req, res) => {
   });
 });
 
+// Add Referrer-Policy header
+app.use((req, res, next) => {
+  res.setHeader('Referrer-Policy', 'origin');
+  next();
+});
+
 const PORT = process.env.PORT || 5001;
 const MONGOURL = process.env.MONGO_URL;
 
@@ -126,8 +152,6 @@ const MONGOURL = process.env.MONGO_URL;
 const connectWithRetry = async () => {
   try {
     await mongoose.connect(MONGOURL, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       serverSelectionTimeoutMS: 5000 // Timeout after 5s instead of 30s
     });
     console.log("Connected to MongoDB successfully.");

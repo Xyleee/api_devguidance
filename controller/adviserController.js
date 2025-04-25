@@ -2,6 +2,8 @@ import Adviser from '../model/adviser.js';
 import { generateToken } from '../utils/jwtUtils.js';
 import AdviserProfile from '../model/adviserProfile.js';
 import { protectRoute } from '../middleware/auth.js';
+import AdviserApplication from '../model/adviserApplication.js';
+import { sendApplicationStatusEmail } from '../utils/sendEmail.js';
 
 export const register = async (req, res) => {
   try {
@@ -98,7 +100,8 @@ export const login = async (req, res) => {
 // Get adviser profile
 export const getProfile = async (req, res) => {
   try {
-    const profile = await AdviserProfile.findOne({ adviser: req.user.id });
+    const profile = await AdviserProfile.findOne({ adviser: req.user.id })
+      .populate('adviser', 'firstName lastName email');
     
     if (!profile) {
       return res.status(404).json({
@@ -107,9 +110,16 @@ export const getProfile = async (req, res) => {
       });
     }
 
+    // Combine adviser name with profile data
+    const profileWithName = {
+      ...profile.toObject(),
+      name: profile.adviser ? `${profile.adviser.firstName} ${profile.adviser.lastName}` : '',
+      email: profile.adviser ? profile.adviser.email : ''
+    };
+
     res.status(200).json({
       success: true,
-      profile
+      profile: profileWithName
     });
   } catch (error) {
     console.error('Get profile error:', error);
@@ -277,6 +287,95 @@ export const uploadProfileImage = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error while uploading profile image',
+      error: error.message
+    });
+  }
+};
+
+// Apply for adviser/mentor role
+export const applyForAdviserRole = async (req, res) => {
+  try {
+    const {
+      fullName,
+      email,
+      phone,
+      jobTitle,
+      company,
+      yearsOfExperience,
+      expertise,
+      bio,
+      linkedInProfile,
+      githubProfile,
+      portfolioWebsite
+    } = req.body;
+
+    // Check if there's already an application with this email
+    const existingApplication = await AdviserApplication.findOne({ email });
+    if (existingApplication) {
+      return res.status(400).json({
+        success: false,
+        message: 'An application with this email already exists'
+      });
+    }
+
+    // Create the application record
+    // Note: In the real implementation, we'd handle resume file upload with multer
+    // For this example, let's assume the file path is stored in req.file.path
+    const resumePath = req.file ? req.file.path : 'default_path_for_testing';
+
+    const adviserApplication = await AdviserApplication.create({
+      fullName,
+      email,
+      phone,
+      jobTitle,
+      company,
+      yearsOfExperience,
+      expertise,
+      bio,
+      resumePath,
+      linkedInProfile,
+      githubProfile: githubProfile || '',
+      portfolioWebsite: portfolioWebsite || ''
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Application submitted successfully',
+      data: adviserApplication
+    });
+  } catch (error) {
+    console.error('Apply for adviser role error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error submitting application',
+      error: error.message
+    });
+  }
+};
+
+// Get application status by email (for applicants to check their status)
+export const getApplicationStatus = async (req, res) => {
+  try {
+    const { email } = req.params;
+
+    const application = await AdviserApplication.findOne({ email }).select('status appliedAt reviewedAt');
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: 'Application not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: application
+    });
+  } catch (error) {
+    console.error('Get application status error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving application status',
       error: error.message
     });
   }
