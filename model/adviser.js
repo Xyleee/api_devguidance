@@ -22,15 +22,6 @@ const AdviserSchema = new mongoose.Schema({
     minlength: 6,
     select: false
   },
-  employeeId: {
-    type: String,
-    required: [true, 'Employee ID is required'],
-    unique: true
-  },
-  specialization: {
-    type: String,
-    required: [true, 'Specialization is required']
-  },
   createdAt: {
     type: Date,
     default: Date.now

@@ -35,7 +35,11 @@ export const sendApplicationStatusEmail = async (application, status) => {
       
       Great news! We're excited to inform you that your application to become a mentor at DevGuidance has been approved.
       
-      You can now log in to our platform using your email and the password you created during registration.
+      You can now log in to our platform using the following credentials:
+      Email: ${application.email}
+      Password: ${application.password || 'Your temporary password has been sent in a separate email.'}
+      
+      Please change your password after your first login for security purposes.
       
       Thank you for your interest in sharing your knowledge and expertise with our community.
       

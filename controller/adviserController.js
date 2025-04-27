@@ -7,16 +7,14 @@ import { sendApplicationStatusEmail } from '../utils/sendEmail.js';
 
 export const register = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, employeeId, specialization } = req.body;
+    const { firstName, lastName, email, password } = req.body;
 
-    const adviserExists = await Adviser.findOne({ 
-      $or: [{ email }, { employeeId }] 
-    });
+    const adviserExists = await Adviser.findOne({ email });
 
     if (adviserExists) {
       return res.status(400).json({
         success: false,
-        message: 'Adviser already exists with this email or ID'
+        message: 'Adviser already exists with this email'
       });
     }
 
@@ -24,9 +22,7 @@ export const register = async (req, res) => {
       firstName,
       lastName,
       email,
-      password,
-      employeeId,
-      specialization
+      password
     });
 
     const token = generateToken(adviser._id, 'adviser');
@@ -38,9 +34,7 @@ export const register = async (req, res) => {
         id: adviser._id,
         firstName: adviser.firstName,
         lastName: adviser.lastName,
-        email: adviser.email,
-        employeeId: adviser.employeeId,
-        specialization: adviser.specialization
+        email: adviser.email
       }
     });
   } catch (error) {
@@ -82,9 +76,7 @@ export const login = async (req, res) => {
         id: adviser._id,
         firstName: adviser.firstName,
         lastName: adviser.lastName,
-        email: adviser.email,
-        employeeId: adviser.employeeId,
-        specialization: adviser.specialization
+        email: adviser.email
       }
     });
   } catch (error) {
@@ -376,6 +368,56 @@ export const getApplicationStatus = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error retrieving application status',
+      error: error.message
+    });
+  }
+};
+
+// Change password for adviser
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    // Validate inputs
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide both current and new password'
+      });
+    }
+    
+    // Find adviser by ID with password included
+    const adviser = await Adviser.findById(req.user.id).select('+password');
+    
+    if (!adviser) {
+      return res.status(404).json({
+        success: false,
+        message: 'Adviser not found'
+      });
+    }
+    
+    // Check if current password matches
+    const isMatch = await adviser.matchPassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+    
+    // Update password
+    adviser.password = newPassword;
+    await adviser.save();
+    
+    res.status(200).json({
+      success: true,
+      message: 'Password updated successfully'
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while changing password',
       error: error.message
     });
   }

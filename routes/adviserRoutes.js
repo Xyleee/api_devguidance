@@ -1,5 +1,5 @@
 import express from 'express';
-import { register, login, getProfile, updateProfile, updateMentoringSummary, getPublicProfile, uploadProfileImage, applyForAdviserRole, getApplicationStatus } from '../controller/adviserController.js';
+import { register, login, getProfile, updateProfile, updateMentoringSummary, getPublicProfile, uploadProfileImage, applyForAdviserRole, getApplicationStatus, changePassword } from '../controller/adviserController.js';
 import { protectRoute, authorizeRoles } from '../middleware/auth.js';  // Changed from authMiddleware.js to auth.js
 import { upload } from '../utils/fileUpload.js';
 import multer from 'multer';
@@ -61,5 +61,8 @@ router.post('/apply', uploadMulter.single('resume'), applyForAdviserRole);
 
 // Check application status by email
 router.get('/application-status/:email', getApplicationStatus);
+
+// Change password route
+router.post('/change-password', protectRoute, authorizeRoles('adviser'), changePassword);
 
 export default router;

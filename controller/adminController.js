@@ -3,6 +3,15 @@ import jwt from 'jsonwebtoken';
 import { validateLoginInput } from '../utils/validation.js';
 import AdviserApplication from '../model/adviserApplication.js';
 import { sendApplicationStatusEmail } from '../utils/sendEmail.js';
+import Adviser from '../model/adviser.js';
+import mongoose from 'mongoose';
+
+// Function to generate password based on fullName
+const generatePasswordFromName = (fullName) => {
+  // Remove spaces, convert to lowercase, and add "123"
+  const namePart = fullName.replace(/\s+/g, '').toLowerCase();
+  return `${namePart}123`;
+};
 
 export const login = async (req, res) => {
   try {
@@ -177,8 +186,84 @@ export const updateApplicationStatus = async (req, res) => {
     
     await application.save();
     
+    // If application is accepted, create an adviser account
+    if (status === 'accepted') {
+      try {
+        // Check if an adviser with this email already exists
+        const existingAdviser = await Adviser.findOne({ email: application.email });
+        
+        if (!existingAdviser) {
+          // Generate password from full name and ensure it's at least 6 characters
+          let password = generatePasswordFromName(application.fullName);
+          if (password.length < 6) {
+            password = password + '123456'.substring(0, 6 - password.length);
+          }
+          
+          // Extract first and last name
+          const nameParts = application.fullName.split(' ');
+          const firstName = nameParts[0];
+          const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+          
+          // Log the data we're about to use
+          console.log('Creating adviser with data:', {
+            firstName,
+            lastName,
+            email: application.email,
+            passwordLength: password.length
+          });
+          
+          // Create new adviser with default specialization if the field is required
+          const adviserData = {
+            firstName,
+            lastName,
+            email: application.email,
+            password
+          };
+          
+          // Add specialization if the field still exists and is required
+          try {
+            const AdviserModel = mongoose.model('Adviser');
+            const schema = AdviserModel.schema;
+            if (schema.paths.specialization && schema.paths.specialization.isRequired) {
+              adviserData.specialization = application.expertise || 'General';
+            }
+            
+            // Add employeeId if the field still exists and is required
+            if (schema.paths.employeeId && schema.paths.employeeId.isRequired) {
+              adviserData.employeeId = `ADV-${Date.now().toString().slice(-6)}`;
+            }
+          } catch (schemaError) {
+            console.error('Error checking schema:', schemaError);
+          }
+          
+          // Create the adviser
+          const newAdviser = await Adviser.create(adviserData);
+          
+          console.log(`Created new adviser account for ${application.fullName} with ID: ${newAdviser._id}`);
+          
+          // Modify the email message to include login details
+          application.password = password; // Temporarily add password to application for email
+        } else {
+          console.log(`Adviser with email ${application.email} already exists`);
+        }
+      } catch (error) {
+        console.error('Error creating adviser account:', error.message);
+        console.error('Full error:', error);
+        console.error('Application data:', {
+          email: application.email,
+          fullName: application.fullName
+        });
+        // We continue even if adviser creation fails, to update the application status
+      }
+    }
+    
     // Send email notification to the applicant
     await sendApplicationStatusEmail(application, status);
+    
+    // Remove the temporary password field
+    if (application.password) {
+      delete application.password;
+    }
     
     res.status(200).json({
       success: true,
